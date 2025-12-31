@@ -1,0 +1,5 @@
+{
+  "name": "Copy of 🍒 Localization JSON Merger",
+  "description": "An application to merge multiple single-language JSON files from a ZIP archive into a single multi-language JSON file. It validates the structure and provides clear error handling.",
+  "requestFramePermissions": []
+}
