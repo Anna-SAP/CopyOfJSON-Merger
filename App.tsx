@@ -7,6 +7,7 @@ import { ErrorMessage } from './components/ErrorMessage';
 import { processZipFiles } from './services/zipProcessor';
 import { Icon } from './components/Icon';
 import { LanguageSelector } from './components/LanguageSelector';
+import { IndividualLanguageDownloader } from './components/IndividualLanguageDownloader';
 
 const App: React.FC = () => {
     // We don't strictly need to store files in state for this logic, 
@@ -98,6 +99,7 @@ const App: React.FC = () => {
                             <ResultDisplay content={result.preview} blob={result.blob} />
                             
                             <LanguageSelector data={result.data} />
+                            <IndividualLanguageDownloader data={result.data} />
                         </div>
                     )}
                 </main>

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Icon } from './Icon';
 
-const LOCALE_LIST = [
+export const LOCALE_LIST = [
     'en-US', 'de-DE', 'en-AU', 'en-GB', 'es-419', 'es-ES', 'fi-FI', 
     'fr-CA', 'fr-FR', 'it-IT', 'ja-JP', 'ko-KR', 'nl-NL', 'pt-BR', 
     'pt-PT', 'zh-CN', 'zh-HK', 'zh-TW'
