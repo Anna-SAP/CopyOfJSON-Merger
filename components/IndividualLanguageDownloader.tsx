@@ -12,7 +12,8 @@ interface IndividualLanguageDownloaderProps {
 
 export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloaderProps> = ({ data }) => {
     const [selected, setSelected] = useState<Set<string>>(new Set());
-    const [isDownloading, setIsDownloading] = useState(false);
+    // Track which action is currently processing: 'json', 'csv', or null
+    const [processingType, setProcessingType] = useState<'json' | 'csv' | null>(null);
     const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -29,32 +30,62 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
     const handleSelectAll = () => setSelected(new Set(LOCALE_LIST));
     const handleDeselectAll = () => setSelected(new Set());
 
-    const handleDownload = async () => {
+    const generateCsvContent = (lang: string) => {
+        const rows = [];
+        // Header
+        rows.push(['Key', 'Value']);
+        
+        data.forEach((row: any) => {
+            if (Object.prototype.hasOwnProperty.call(row, lang)) {
+                rows.push([row.key, row[lang]]);
+            }
+        });
+
+        // Convert to CSV string: escape quotes and wrap fields in quotes
+        const csvString = rows.map(row => 
+            row.map(field => {
+                const stringField = String(field || '');
+                return `"${stringField.replace(/"/g, '""')}"`;
+            }).join(',')
+        ).join('\n');
+
+        // Add UTF-8 BOM (\uFEFF) so Excel recognizes it as UTF-8
+        return '\uFEFF' + csvString;
+    };
+
+    const handleDownload = async (type: 'json' | 'csv') => {
         if (selected.size === 0) return;
-        setIsDownloading(true);
+        
+        setProcessingType(type);
         setDownloadProgress(0);
         setError(null);
 
         try {
+            const extension = type;
+            const mimeType = type === 'json' ? 'application/json' : 'text/csv;charset=utf-8;';
+
             // Case 1: Single file download
             if (selected.size === 1) {
                 const lang = Array.from(selected)[0] as string;
-                const langData: Record<string, string> = {};
-                
-                // Extract data
-                data.forEach((row: any) => {
-                    if (Object.prototype.hasOwnProperty.call(row, lang)) {
-                        langData[row.key] = row[lang];
-                    }
-                });
+                let content: string;
 
-                const jsonString = JSON.stringify(langData, null, 2);
-                const blob = new Blob([jsonString], { type: 'application/json' });
+                if (type === 'json') {
+                    const langData: Record<string, string> = {};
+                    data.forEach((row: any) => {
+                        if (Object.prototype.hasOwnProperty.call(row, lang)) {
+                            langData[row.key] = row[lang];
+                        }
+                    });
+                    content = JSON.stringify(langData, null, 2);
+                } else {
+                    content = generateCsvContent(lang);
+                }
+
+                const blob = new Blob([content], { type: mimeType });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 
-                // Format: en_US_locale.json
-                const filename = `${lang.replace('-', '_')}_locale.json`;
+                const filename = `${lang.replace('-', '_')}_locale.${extension}`;
                 
                 link.href = url;
                 link.download = filename;
@@ -64,23 +95,31 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
                 URL.revokeObjectURL(url);
                 
                 setDownloadProgress(100);
-                setTimeout(() => setDownloadProgress(null), 1000);
+                setTimeout(() => {
+                    setDownloadProgress(null);
+                }, 1000);
             } 
             // Case 2: Multiple files (ZIP)
             else {
                 const zip = new JSZip();
-                const folder = zip; // can be zip.folder("locales") if we want a subfolder
-
+                // Optional: put them in a folder or root. Root is fine for bundle.
+                
                 selected.forEach((lang: string) => {
-                    const langData: Record<string, string> = {};
-                    data.forEach((row: any) => {
-                        if (Object.prototype.hasOwnProperty.call(row, lang)) {
-                            langData[row.key] = row[lang];
-                        }
-                    });
-
-                    const filename = `${lang.replace('-', '_')}_locale.json`;
-                    folder.file(filename, JSON.stringify(langData, null, 2));
+                    let content: string;
+                    if (type === 'json') {
+                         const langData: Record<string, string> = {};
+                         data.forEach((row: any) => {
+                             if (Object.prototype.hasOwnProperty.call(row, lang)) {
+                                 langData[row.key] = row[lang];
+                             }
+                         });
+                         content = JSON.stringify(langData, null, 2);
+                    } else {
+                        content = generateCsvContent(lang);
+                    }
+                    
+                    const filename = `${lang.replace('-', '_')}_locale.${extension}`;
+                    zip.file(filename, content);
                 });
 
                 await zip.generateAsync(
@@ -92,7 +131,7 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
-                    link.download = `locales_bundle.zip`;
+                    link.download = `locales_${extension}_bundle.zip`;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -102,9 +141,9 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
             }
         } catch (err: any) {
             console.error(err);
-            setError("Failed to generate files. Please try again.");
+            setError(`Failed to generate ${type.toUpperCase()} files. Please try again.`);
         } finally {
-            setIsDownloading(false);
+            setProcessingType(null);
         }
     };
 
@@ -120,7 +159,7 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
                             Custom Language Download (Individual file per locale)
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Generate independent JSON files for each language
+                            Generate independent files for each language
                         </p>
                     </div>
                 </div>
@@ -176,30 +215,59 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
                 </div>
             )}
 
-            <div className="flex justify-end border-t border-slate-200 dark:border-slate-700 pt-6">
+            <div className="flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-200 dark:border-slate-700 pt-6">
+                {/* JSON Download Button */}
                 <button
-                    onClick={handleDownload}
-                    disabled={selected.size === 0 || isDownloading}
+                    onClick={() => handleDownload('json')}
+                    disabled={selected.size === 0 || processingType !== null}
                     className={`
-                        relative flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all duration-200 overflow-hidden
-                        ${selected.size > 0 
+                        relative flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all duration-200 overflow-hidden
+                        ${selected.size > 0 && processingType === null
                             ? 'bg-indigo-500 hover:bg-indigo-600 shadow-lg shadow-indigo-500/25 transform hover:-translate-y-0.5 active:translate-y-0' 
-                            : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-70'
+                            : (processingType === 'json' ? 'bg-indigo-500 cursor-wait' : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-70')
                         }
                     `}
                 >
-                    {isDownloading ? (
+                    {processingType === 'json' ? (
                          <>
                             <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            Processing... {downloadProgress !== null ? `${Math.round(downloadProgress)}%` : ''}
+                            {downloadProgress !== null ? `${Math.round(downloadProgress)}%` : 'Processing...'}
                          </>
                     ) : (
                         <>
                             <Icon name="download" className="w-5 h-5" />
-                            Download {selected.size} Files
+                            Download {selected.size} Files (JSON)
+                        </>
+                    )}
+                </button>
+
+                {/* CSV Download Button */}
+                <button
+                    onClick={() => handleDownload('csv')}
+                    disabled={selected.size === 0 || processingType !== null}
+                    className={`
+                        relative flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all duration-200 overflow-hidden
+                        ${selected.size > 0 && processingType === null
+                            ? 'bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-600/25 transform hover:-translate-y-0.5 active:translate-y-0' 
+                            : (processingType === 'csv' ? 'bg-indigo-600 cursor-wait' : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-70')
+                        }
+                    `}
+                >
+                     {processingType === 'csv' ? (
+                         <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                             {downloadProgress !== null ? `${Math.round(downloadProgress)}%` : 'Processing...'}
+                         </>
+                    ) : (
+                        <>
+                            <Icon name="download" className="w-5 h-5" />
+                            Download {selected.size} Files in CSV (UTF-8)
                         </>
                     )}
                 </button>
