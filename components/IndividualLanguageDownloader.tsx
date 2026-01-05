@@ -12,8 +12,8 @@ interface IndividualLanguageDownloaderProps {
 
 export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloaderProps> = ({ data }) => {
     const [selected, setSelected] = useState<Set<string>>(new Set());
-    // Track which action is currently processing: 'json', 'csv', or null
-    const [processingType, setProcessingType] = useState<'json' | 'csv' | null>(null);
+    // Track which action is currently processing: 'json', 'csv', 'md', or null
+    const [processingType, setProcessingType] = useState<'json' | 'csv' | 'md' | null>(null);
     const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +53,25 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
         return '\uFEFF' + csvString;
     };
 
-    const handleDownload = async (type: 'json' | 'csv') => {
+    const generateMarkdownContent = (lang: string) => {
+        const rows = [];
+        // Table Header
+        rows.push('| Key | Value |');
+        rows.push('| --- | --- |');
+        
+        data.forEach((row: any) => {
+            if (Object.prototype.hasOwnProperty.call(row, lang)) {
+                // Escape pipes | to prevent breaking table structure, replace newlines with <br>
+                const key = row.key.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+                const value = String(row[lang] || '').replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+                rows.push(`| ${key} | ${value} |`);
+            }
+        });
+
+        return rows.join('\n');
+    };
+
+    const handleDownload = async (type: 'json' | 'csv' | 'md') => {
         if (selected.size === 0) return;
         
         setProcessingType(type);
@@ -62,7 +80,9 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
 
         try {
             const extension = type;
-            const mimeType = type === 'json' ? 'application/json' : 'text/csv;charset=utf-8;';
+            let mimeType = 'application/json';
+            if (type === 'csv') mimeType = 'text/csv;charset=utf-8;';
+            if (type === 'md') mimeType = 'text/markdown;charset=utf-8;';
 
             // Case 1: Single file download
             if (selected.size === 1) {
@@ -77,8 +97,10 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
                         }
                     });
                     content = JSON.stringify(langData, null, 2);
-                } else {
+                } else if (type === 'csv') {
                     content = generateCsvContent(lang);
+                } else {
+                    content = generateMarkdownContent(lang);
                 }
 
                 const blob = new Blob([content], { type: mimeType });
@@ -102,7 +124,6 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
             // Case 2: Multiple files (ZIP)
             else {
                 const zip = new JSZip();
-                // Optional: put them in a folder or root. Root is fine for bundle.
                 
                 selected.forEach((lang: string) => {
                     let content: string;
@@ -114,8 +135,10 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
                              }
                          });
                          content = JSON.stringify(langData, null, 2);
-                    } else {
+                    } else if (type === 'csv') {
                         content = generateCsvContent(lang);
+                    } else {
+                        content = generateMarkdownContent(lang);
                     }
                     
                     const filename = `${lang.replace('-', '_')}_locale.${extension}`;
@@ -267,7 +290,35 @@ export const IndividualLanguageDownloader: React.FC<IndividualLanguageDownloader
                     ) : (
                         <>
                             <Icon name="download" className="w-5 h-5" />
-                            Download {selected.size} Files in CSV (UTF-8)
+                            Download {selected.size} Files in CSV
+                        </>
+                    )}
+                </button>
+
+                {/* Markdown Download Button */}
+                <button
+                    onClick={() => handleDownload('md')}
+                    disabled={selected.size === 0 || processingType !== null}
+                    className={`
+                        relative flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all duration-200 overflow-hidden
+                        ${selected.size > 0 && processingType === null
+                            ? 'bg-indigo-700 hover:bg-indigo-800 shadow-lg shadow-indigo-700/25 transform hover:-translate-y-0.5 active:translate-y-0' 
+                            : (processingType === 'md' ? 'bg-indigo-700 cursor-wait' : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-70')
+                        }
+                    `}
+                >
+                     {processingType === 'md' ? (
+                         <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                             {downloadProgress !== null ? `${Math.round(downloadProgress)}%` : 'Processing...'}
+                         </>
+                    ) : (
+                        <>
+                            <Icon name="download" className="w-5 h-5" />
+                            Download {selected.size} Files in Markdown
                         </>
                     )}
                 </button>
