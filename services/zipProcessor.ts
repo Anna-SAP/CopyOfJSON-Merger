@@ -2,7 +2,7 @@
 // This function offloads the heavy ZIP processing to a Web Worker
 // to prevent the UI from freezing with large files.
 
-export const processZipFiles = (files: File[]): Promise<{ blob: Blob; preview: string; }> => {
+export const processZipFiles = (files: File[]): Promise<{ blob: Blob; preview: string; data: any[] }> => {
     // The worker code is inlined as a string to create a Blob.
     // This avoids cross-origin issues when loading the worker script
     // in sandboxed environments.
@@ -177,7 +177,8 @@ export const processZipFiles = (files: File[]): Promise<{ blob: Blob; preview: s
                 preview = fullJsonString.substring(0, PREVIEW_LENGTH) + '\\n\\n[...]\\n\\n--- CONTENT TRUNCATED ---\\n\\n\\nThe full file is available for download.';
             }
 
-            return { blob, preview };
+            // Return blob, preview AND the structured data for filtering in the UI
+            return { blob, preview, data: finalResult };
         };
 
         self.onmessage = async (event) => {

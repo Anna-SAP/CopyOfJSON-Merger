@@ -6,6 +6,7 @@ import { Spinner } from './components/Spinner';
 import { ErrorMessage } from './components/ErrorMessage';
 import { processZipFiles } from './services/zipProcessor';
 import { Icon } from './components/Icon';
+import { LanguageSelector } from './components/LanguageSelector';
 
 const App: React.FC = () => {
     // We don't strictly need to store files in state for this logic, 
@@ -13,7 +14,7 @@ const App: React.FC = () => {
     // For now, we process immediately.
     const [processing, setProcessing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [result, setResult] = useState<{ blob: Blob; preview: string; } | null>(null);
+    const [result, setResult] = useState<{ blob: Blob; preview: string; data: any[] } | null>(null);
 
     const handleFilesChange = (selectedFiles: File[]) => {
         setError(null);
@@ -95,6 +96,8 @@ const App: React.FC = () => {
                                 </button>
                             </div>
                             <ResultDisplay content={result.preview} blob={result.blob} />
+                            
+                            <LanguageSelector data={result.data} />
                         </div>
                     )}
                 </main>
