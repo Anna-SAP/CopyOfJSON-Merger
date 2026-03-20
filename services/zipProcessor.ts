@@ -18,10 +18,10 @@ export const processZipFiles = (files: File[]): Promise<{ blob: Blob; preview: s
                 'zh-CN', 'zh-HK', 'zh-TW'
             ];
 
-            // Regex for complex structures, e.g., 'en-US/trunk/opus_jsons/source.json' or 'en-US/trunk/opus_jsons/.../source.json'
-            const complexStructureRegex = /([a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,4})?)\\/trunk\\/opus_jsons\\/(?:.+\\/)?source\\.json$/;
-            // Regex for simple structure, e.g., 'en-US.json'
-            const simpleStructureRegex = /^([a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,4})?)\\.json$/;
+            // Regex for complex structures, e.g., 'en-US/trunk/opus_jsons/source.json', 'de_DE/Task-123/opus_jsons/source.json', or 'translations/de_DE/Task/opus_jsons/source.json'
+            const complexStructureRegex = /^(?:.*?\\/)?([a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,4})*)\\/(?:.*\\/)?opus_jsons\\/.*\\.json$/;
+            // Regex for simple structure, e.g., 'en-US.json' or 'de_DE.json'
+            const simpleStructureRegex = /^([a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,4})*)\\.json$/;
 
             const sourceFilePromises = [];
 
@@ -108,7 +108,7 @@ export const processZipFiles = (files: File[]): Promise<{ blob: Blob; preview: s
             }
 
             if (sourceFilePromises.length === 0) {
-                throw new Error("No valid translation files found in the provided ZIPs. Ensure the ZIP files contain either language-named JSON files (e.g., 'en-US.json') or follow a structure like 'en-US/trunk/opus_jsons/source.json'.");
+                throw new Error("No valid translation files found in the provided ZIPs. Ensure the ZIP files contain either language-named JSON files (e.g., 'en-US.json') or follow a structure like 'en-US/.../opus_jsons/source.json'.");
             }
 
             const allLanguageData = await Promise.all(sourceFilePromises);
