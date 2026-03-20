@@ -18,11 +18,6 @@ export const processZipFiles = (files: File[]): Promise<{ blob: Blob; preview: s
                 'zh-CN', 'zh-HK', 'zh-TW'
             ];
 
-            // Regex for complex structures, e.g., 'en-US/trunk/opus_jsons/source.json', 'de_DE/Task-123/opus_jsons/source.json', or 'translations/de_DE/Task/opus_jsons/source.json'
-            const complexStructureRegex = /^(?:.*?\\/)?([a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,4})*)\\/(?:.*\\/)?opus_jsons\\/.*\\.json$/;
-            // Regex for simple structure, e.g., 'en-US.json' or 'de_DE.json'
-            const simpleStructureRegex = /^([a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,4})*)\\.json$/;
-
             const sourceFilePromises = [];
 
             // Iterate over all provided files
@@ -41,22 +36,32 @@ export const processZipFiles = (files: File[]): Promise<{ blob: Blob; preview: s
                     }
 
                     let lang = null;
-                    let match;
 
-                    // Check for complex structure
-                    match = relativePath.match(complexStructureRegex);
-                    if (match) {
-                        lang = match[1];
-                    } else {
-                        // Check for simple structure, possibly in a subdirectory
-                        const pathSegments = relativePath.split('/');
-                        const filename = pathSegments.pop();
-
-                        // Ignore macOS resource fork files and hidden files
-                        if (filename && !filename.startsWith('__MACOSX') && !filename.startsWith('.')) {
-                            match = filename.match(simpleStructureRegex);
-                            if (match) {
-                                lang = match[1];
+                    // Ignore macOS resource fork files and hidden files
+                    if (!relativePath.startsWith('__MACOSX') && !relativePath.split('/').pop().startsWith('.')) {
+                        // We only care about files ending in .json or .json.xlf
+                        if (relativePath.match(/\\.json(?:\\.xlf)?$/)) {
+                            const segments = relativePath.split('/');
+                            const filename = segments.pop();
+                            
+                            // Check for simple structure: language_code.json or language_code.json.xlf
+                            const simpleStructureRegex = /^([a-zA-Z]{2,3}(?:[-_][a-zA-Z0-9]{2,4})*)\.json(?:\.xlf)?$/;
+                            const simpleMatch = filename ? filename.match(simpleStructureRegex) : null;
+                            
+                            if (simpleMatch) {
+                                lang = simpleMatch[1].replace(/_/g, '-');
+                            } else if (segments.includes('opus_jsons')) {
+                                // Complex structure: e.g., de_DE/Task-123/en-US/trunk/opus_jsons/source.json.xlf
+                                // The language code is typically the first valid language segment.
+                                // We use a strict regex to avoid false positives like 'Bug-123' or 'Task-123'.
+                                const langRegex = /^(?:[a-zA-Z]{2}[-_][a-zA-Z0-9]{2,4}|[a-zA-Z]{3}[-_][a-zA-Z]{2,4})(?:[-_][a-zA-Z0-9]{2,4})*$/;
+                                
+                                for (const segment of segments) {
+                                    if (langRegex.test(segment)) {
+                                        lang = segment.replace(/_/g, '-');
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
